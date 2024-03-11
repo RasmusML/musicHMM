@@ -36,6 +36,21 @@ def write_midi_file(midi_data, filename, track=0, time_offset=0, channel=0, temp
         midi.writeFile(f)
 
 
+def write_midi_file2(midi_data, filename, track=0, time_offset=0, channel=0, tempo=240, volume=100, duration=1):
+    dir = os.path.dirname(filename)
+    if dir: os.makedirs(dir, exist_ok=True)
+
+    midi = MIDIFile(1)
+    midi.addTempo(track, time_offset, tempo)
+    
+    for i, (note, time) in enumerate(midi_data):
+        if note == 0: continue
+        midi.addNote(track, channel, note, time_offset + time, duration, volume)
+
+    with open(filename, "wb") as f:
+        midi.writeFile(f)
+
+
 NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 OCTAVES = list(range(11))
 NOTES_IN_OCTAVE = len(NOTES)
@@ -75,11 +90,18 @@ def plot_sequence(x_sequence, state_sequence, dots=False):
         ax.scatter(xs, x_sequence, color=colors)
     else:
         for i in range(x_sequence.shape[0]):
-            x, y = xs[i], x_sequence[i,0]
+            x, y = xs[i], x_sequence[i]
             note = number_to_note(y)[0]
             ax.text(x-.1, y-.22, note, color=colors[i], size=12)
 
     ax.set_ylabel("note")
+    ax.set_xlabel("time")
     ax.set_title("Melody sequence")
     ax.set_xlim(0, x_sequence.shape[0])
     
+
+
+def random_walk(n):
+    xs = 2 * (np.random.rand(n) > 0.5) - 1
+    xs = np.cumsum(xs)
+    return xs - xs.min()
