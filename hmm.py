@@ -69,7 +69,7 @@ def backward(seq, l_trans, l_emiss):
     return l_beta
 
 
-def baum_welch(seq, n_h, n_obs, n_iter, l_h_init=None, l_trans=None, l_emiss=None, convergence_eps=1e-5):
+def baum_welch(seq, n_h, n_obs, n_iter, l_h_init=None, l_trans=None, l_emiss=None, convergence_eps=-1):
     """EM algorithm for HMMs.
     Numerical instabilities are handled by working in log-space.
 
@@ -78,7 +78,7 @@ def baum_welch(seq, n_h, n_obs, n_iter, l_h_init=None, l_trans=None, l_emiss=Non
     - https://gregorygundersen.com/blog/2019/11/10/em/
     - https://gregorygundersen.com/blog/2020/11/28/hmms/
     """
-    # init
+    ## init
     n_t = seq.shape[0]
 
     if l_h_init is None:
@@ -129,8 +129,8 @@ def baum_welch(seq, n_h, n_obs, n_iter, l_h_init=None, l_trans=None, l_emiss=Non
         assert np.all(np.isclose(np.sum(np.exp(l_trans), axis=1), 1)), f"{np.sum(np.exp(l_trans), axis=1)}"
 
         # check for convergence
-        #if len(lls) > 1 and np.abs(lls[-1] - lls[-2]) < convergence_eps:
-        #    break
+        if len(lls) > 1 and np.abs(lls[-1] - lls[-2]) < convergence_eps:
+            break
 
     return l_trans, l_emiss, l_h_init, lls
 
