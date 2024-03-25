@@ -98,10 +98,3 @@ def plot_sequence(x_sequence, state_sequence, dots=False):
     ax.set_xlabel("time")
     ax.set_title("Melody sequence")
     ax.set_xlim(0, x_sequence.shape[0])
-    
-
-
-def random_walk(n):
-    xs = 2 * (np.random.rand(n) > 0.5) - 1
-    xs = np.cumsum(xs)
-    return xs - xs.min()

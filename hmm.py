@@ -6,11 +6,12 @@ class HMM:
         self.n_hidden = n_hidden
         self.n_obs = n_obs
 
-    def fit(self, seq, n_iter=100):
-        self._l_trans, self._l_emiss, self._l_h_init = baum_welch(seq, self.n_hidden, self.n_obs, n_iter)
+    def fit(self, seq, n_iter=100, l_h_init=None, l_trans_init=None, l_emiss_init=None):
+        self._l_trans, self._l_emiss, self._l_h_init, self._history = baum_welch(seq, self.n_hidden, self.n_obs, n_iter, l_h_init=l_h_init, l_trans=l_trans_init, l_emiss=l_emiss_init)
 
     def predict(self, seq):
-        return viterbi(seq, self._l_trans, self._l_emiss, self._l_h_init)
+        seq, _= viterbi(seq, self._l_trans, self._l_emiss, self._l_h_init)
+        return seq
     
     def sample(self, length):
         seq = np.zeros(length, dtype=np.int32)
@@ -38,7 +39,24 @@ class HMM:
         return np.exp(self._l_h_init)
 
 
+def forward(seq, l_trans, l_emiss, l_h_init):
+    # p(zn, x1:n)
+
+    n_t = seq.shape[0]
+    n_h = l_trans.shape[0]
+
+    l_alpha = np.zeros((n_h, n_t))
+    l_alpha[:,0] = l_h_init + l_emiss[:,seq[0]]
+    
+    for t in range(1, n_t):
+        l_alpha[:,t] = l_emiss[:,seq[t]] + logsumexp(l_trans + l_alpha[:,t-1].reshape(-1,1), axis=0)
+        
+    return l_alpha
+
+
 def backward(seq, l_trans, l_emiss):
+    # p(x_{t+1:n} | zn)
+
     n_t = seq.shape[0]
     n_h = l_trans.shape[0]
 
@@ -50,20 +68,8 @@ def backward(seq, l_trans, l_emiss):
         
     return l_beta
 
-def forward(seq, l_trans, l_emiss, l_h_init):
-    n_t = seq.shape[0]
-    n_h = l_trans.shape[0]
 
-    l_alpha = np.zeros((n_h, n_t))
-    l_alpha[:,0] = l_h_init + l_emiss[:,seq[0]]
-    
-    for t in range(1, n_t):
-        l_alpha[:,t] = l_emiss[:,seq[t]] + logsumexp(l_trans + l_alpha[:,t-1], axis=0)
-        
-    return l_alpha
-
-
-def baum_welch(seq, n_h, n_obs, n_iter, l_h_init=None, l_trans=None, l_emiss=None):
+def baum_welch(seq, n_h, n_obs, n_iter, l_h_init=None, l_trans=None, l_emiss=None, convergence_eps=1e-5):
     """EM algorithm for HMMs.
     Numerical instabilities are handled by working in log-space.
 
@@ -87,22 +93,28 @@ def baum_welch(seq, n_h, n_obs, n_iter, l_h_init=None, l_trans=None, l_emiss=Non
         l_emiss = np.random.normal(size=(n_h, n_obs))
         l_emiss -= logsumexp(l_emiss, axis=0)
 
-    # EM
+    lls = []
+
+    ### EM
     for i in range(n_iter):
-        # E-step
-        l_alpha = forward(seq, l_trans, l_emiss, l_h_init)
-        l_beta = backward(seq, l_trans, l_emiss)
+        ## E-step
+        l_alpha = forward(seq, l_trans, l_emiss, l_h_init)  # p(zn, x1:n)
+        l_beta = backward(seq, l_trans, l_emiss)            # p(x_{t+1:n} | zn)
+        
+        # compute log-likelihood
+        ll = logsumexp(l_alpha[:,-1])
+        lls += [ll]
 
-        l_gamma = l_alpha + l_beta
-        l_gamma -= logsumexp(l_gamma, axis=0)
+        l_gamma = l_alpha + l_beta            # p(zn, x1:n)
+        l_gamma -= logsumexp(l_gamma, axis=0) # p(zn | x1:n)
 
+        # p(zn, zn+1 | x1:n)
         l_xi = np.zeros((n_h, n_h, n_t-1))
         for t in range(n_t-1):
             w = l_alpha[:,t].reshape(-1,1) + l_trans + l_emiss[:,seq[t+1]] + l_beta[:,t+1]
             l_xi[:,:,t] = w - logsumexp(w)
                 
-        
-        # M-step
+        ## M-step
         l_h_init = l_gamma[:,0]
         assert np.isclose(np.sum(np.exp(l_h_init)), 1), f"{np.sum(np.exp(l_h_init))}"
 
@@ -113,11 +125,14 @@ def baum_welch(seq, n_h, n_obs, n_iter, l_h_init=None, l_trans=None, l_emiss=Non
         
         for i in range(n_h):
             l_trans[i] = logsumexp(l_xi[i], axis=1) - logsumexp(l_xi[i])
-            #l_trans[i] = logsumexp(l_xi[i], axis=1) - logsumexp(l_gamma[i])
         
         assert np.all(np.isclose(np.sum(np.exp(l_trans), axis=1), 1)), f"{np.sum(np.exp(l_trans), axis=1)}"
 
-    return l_trans, l_emiss, l_h_init
+        # check for convergence
+        #if len(lls) > 1 and np.abs(lls[-1] - lls[-2]) < convergence_eps:
+        #    break
+
+    return l_trans, l_emiss, l_h_init, lls
 
 
 def viterbi(seq, l_trans, l_emiss, l_h_init):
@@ -138,6 +153,6 @@ def viterbi(seq, l_trans, l_emiss, l_h_init):
     seq_h = np.zeros(n_t, dtype=np.int32)
     seq_h[-1] = np.argmax(prob[:,-1])
     for t in range(1, n_t):
-        seq_h[-t-1] = prev[seq_h[-t], -t]
+        seq_h[-t-1] = prev[seq_h[-t],-t]
 
-    return seq_h
+    return seq_h, prob
