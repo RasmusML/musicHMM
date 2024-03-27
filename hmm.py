@@ -6,8 +6,8 @@ class HMM:
         self.n_hidden = n_hidden
         self.n_obs = n_obs
 
-    def fit(self, seq, n_iter=100, l_h_init=None, l_trans_init=None, l_emiss_init=None):
-        self._l_trans, self._l_emiss, self._l_h_init, self._history = baum_welch(seq, self.n_hidden, self.n_obs, n_iter, l_h_init=l_h_init, l_trans=l_trans_init, l_emiss=l_emiss_init)
+    def fit(self, seqs, lengths, n_iter=100, l_h_init=None, l_trans_init=None, l_emiss_init=None):
+        self._l_trans, self._l_emiss, self._l_h_init, self._history = baum_welch(seqs, lengths, self.n_hidden, self.n_obs, n_iter, l_h_init=l_h_init, l_trans=l_trans_init, l_emiss=l_emiss_init)
 
     def predict(self, seq):
         seq, _= viterbi(seq, self._l_trans, self._l_emiss, self._l_h_init)
@@ -69,7 +69,7 @@ def backward(seq, l_trans, l_emiss):
     return l_beta
 
 
-def baum_welch(seq, n_h, n_obs, n_iter, l_h_init=None, l_trans=None, l_emiss=None, convergence_eps=-1):
+def baum_welch(seqs, lengths, n_hidden, n_obs, n_iter, l_h_init=None, l_trans=None, l_emiss=None, convergence_eps=-1):
     """EM algorithm for HMMs.
     Numerical instabilities are handled by working in log-space.
 
@@ -79,52 +79,77 @@ def baum_welch(seq, n_h, n_obs, n_iter, l_h_init=None, l_trans=None, l_emiss=Non
     - https://gregorygundersen.com/blog/2020/11/28/hmms/
     """
     ## init
-    n_t = seq.shape[0]
-
+    
     if l_h_init is None:
-        l_h_init = np.ones(n_h) / n_h
+        l_h_init = np.ones(n_hidden) / n_hidden
         l_h_init = np.log(l_h_init)
 
     if l_trans is None:
-        l_trans = np.random.normal(size=(n_h, n_h))
+        l_trans = np.random.normal(size=(n_hidden, n_hidden))
         l_trans -= logsumexp(l_trans, axis=0)
 
     if l_emiss is None:
-        l_emiss = np.random.normal(size=(n_h, n_obs))
+        l_emiss = np.random.normal(size=(n_hidden, n_obs))
         l_emiss -= logsumexp(l_emiss, axis=0)
 
     lls = []
 
+    n_seqs = len(lengths)
+    
+    seqs_start_inclusive = np.zeros(n_seqs, dtype=np.int32)
+    seqs_start_inclusive[1:] = np.cumsum(lengths)[:-1]
+
+    seqs_end_exclusive = np.cumsum(lengths)
+
+    total_length = np.sum(lengths)
+
+    seqs_mask = np.zeros((n_obs, total_length), dtype=bool)
+    seqs_mask[seqs, np.arange(total_length)] = True
+
     ### EM
     for i in range(n_iter):
         ## E-step
-        l_alpha = forward(seq, l_trans, l_emiss, l_h_init)  # p(zn, x1:n)
-        l_beta = backward(seq, l_trans, l_emiss)            # p(x_{t+1:n} | zn)
-        
-        # compute log-likelihood
-        ll = logsumexp(l_alpha[:,-1])
-        lls += [ll]
+        ll = 0
 
-        l_gamma = l_alpha + l_beta            # p(zn, x1:n)
-        l_gamma -= logsumexp(l_gamma, axis=0) # p(zn | x1:n)
+        l_gamma_all = np.zeros((n_hidden, total_length))
+        l_xi_all = np.zeros((n_hidden, n_hidden, total_length-1))
 
-        # p(zn, zn+1 | x1:n)
-        l_xi = np.zeros((n_h, n_h, n_t-1))
-        for t in range(n_t-1):
-            w = l_alpha[:,t].reshape(-1,1) + l_trans + l_emiss[:,seq[t+1]] + l_beta[:,t+1]
-            l_xi[:,:,t] = w - logsumexp(w)
-                
+        for s, e in zip(seqs_start_inclusive, seqs_end_exclusive):
+            seq = seqs[s:e]
+            seq_len = seq.shape[0]
+
+            l_alpha = forward(seq, l_trans, l_emiss, l_h_init)  # p(zn, x1:n)
+            l_beta = backward(seq, l_trans, l_emiss)            # p(x_{t+1:n} | zn)
+            
+            l_gamma = l_alpha + l_beta            # p(zn, x1:n)
+            l_gamma -= logsumexp(l_gamma, axis=0) # p(zn | x1:n)
+
+            # p(zn, zn+1 | x1:n)
+            l_xi = np.zeros((n_hidden, n_hidden, seq_len-1))
+            for t in range(seq_len-1):
+                w = l_alpha[:,t].reshape(-1,1) + l_trans + l_emiss[:,seq[t+1]] + l_beta[:,t+1]
+                l_xi[:,:,t] = w - logsumexp(w)
+
+            l_gamma_all[:,s:e] = l_gamma
+            l_xi_all[:,:,s:e-1] = l_xi
+
+            # compute log-likelihood
+            ll += logsumexp(l_alpha[:,-1])
+
+        lls.append(ll)
+
         ## M-step
-        l_h_init = l_gamma[:,0]
+        l_h_init = logsumexp(l_gamma_all[:,seqs_start_inclusive], axis=1) - np.log(n_seqs)
         assert np.isclose(np.sum(np.exp(l_h_init)), 1), f"{np.sum(np.exp(l_h_init))}"
 
         for i in range(n_obs):
-            l_emiss[:,i] = logsumexp(l_gamma[:,seq==i], axis=1) - logsumexp(l_gamma, axis=1) if np.sum(seq==i) > 0 else -100
+            m = seqs_mask[i]
+            l_emiss[:,i] = logsumexp(l_gamma_all[:,m], axis=1) - logsumexp(l_gamma_all, axis=1) if np.sum(m) > 0 else -100
         
         assert np.all(np.isclose(np.sum(np.exp(l_emiss), axis=1), 1)), f"{np.sum(np.exp(l_emiss), axis=1)}"
         
-        for i in range(n_h):
-            l_trans[i] = logsumexp(l_xi[i], axis=1) - logsumexp(l_xi[i])
+        for i in range(n_hidden):
+            l_trans[i] = logsumexp(l_xi_all[i], axis=1) - logsumexp(l_xi_all[i])
         
         assert np.all(np.isclose(np.sum(np.exp(l_trans), axis=1), 1)), f"{np.sum(np.exp(l_trans), axis=1)}"
 

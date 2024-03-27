@@ -3,11 +3,11 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 import distinctipy
+import subprocess
 
 from midiutil.MidiFile import MIDIFile
 
-# Data source:
-# https://github.com/czhuang/JSB-Chorales-dataset/
+
 def load_jsb_chorales(path="data/jsb-chorales-quarter.pkl"):
     with open(path, "rb") as f:
         raw = pickle.load(f)
@@ -21,6 +21,12 @@ def load_jsb_chorales(path="data/jsb-chorales-quarter.pkl"):
     return result
 
 
+def write_wav(midi_data, filename, track=0, time_offset=0, channel=0, tempo=240, volume=100, duration=1):
+    write_midi_file(midi_data, "_tmp.mid", track, time_offset, channel, tempo, volume, duration)
+    subprocess.run(["timidity", "_tmp.mid", "-Ow", "-o", filename], stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL)
+    subprocess.run(["rm", "_tmp.mid"], stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL)
+
+
 def write_midi_file(midi_data, filename, track=0, time_offset=0, channel=0, tempo=240, volume=100, duration=1):
     dir = os.path.dirname(filename)
     if dir: os.makedirs(dir, exist_ok=True)
@@ -31,21 +37,6 @@ def write_midi_file(midi_data, filename, track=0, time_offset=0, channel=0, temp
     for i, note in enumerate(midi_data):
         if note == 0: continue
         midi.addNote(track, channel, note, time_offset + i, duration, volume)
-
-    with open(filename, "wb") as f:
-        midi.writeFile(f)
-
-
-def write_midi_file2(midi_data, filename, track=0, time_offset=0, channel=0, tempo=240, volume=100, duration=1):
-    dir = os.path.dirname(filename)
-    if dir: os.makedirs(dir, exist_ok=True)
-
-    midi = MIDIFile(1)
-    midi.addTempo(track, time_offset, tempo)
-    
-    for i, (note, time) in enumerate(midi_data):
-        if note == 0: continue
-        midi.addNote(track, channel, note, time_offset + time, duration, volume)
 
     with open(filename, "wb") as f:
         midi.writeFile(f)
