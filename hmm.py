@@ -6,8 +6,8 @@ class HMM:
         self.n_hidden = n_hidden
         self.n_obs = n_obs
 
-    def fit(self, seqs, lengths, n_iter=100, l_h_init=None, l_trans_init=None, l_emiss_init=None):
-        self._l_trans, self._l_emiss, self._l_h_init, self._history = baum_welch(seqs, lengths, self.n_hidden, self.n_obs, n_iter, l_h_init=l_h_init, l_trans=l_trans_init, l_emiss=l_emiss_init)
+    def fit(self, seqs, lengths, n_iter=100, l_h_init=None, l_trans_init=None, l_emiss_init=None, convergence_eps=-1):
+        self._l_trans, self._l_emiss, self._l_h_init, self._history = baum_welch(seqs, lengths, self.n_hidden, self.n_obs, n_iter, l_h_init=l_h_init, l_trans=l_trans_init, l_emiss=l_emiss_init, convergence_eps=convergence_eps)
 
     def predict(self, seq):
         seq, _= viterbi(seq, self._l_trans, self._l_emiss, self._l_h_init)
@@ -81,16 +81,15 @@ def baum_welch(seqs, lengths, n_hidden, n_obs, n_iter, l_h_init=None, l_trans=No
     ## init
     
     if l_h_init is None:
-        l_h_init = np.ones(n_hidden) / n_hidden
-        l_h_init = np.log(l_h_init)
+        l_h_init = np.log(np.ones(n_hidden) / n_hidden)
 
     if l_trans is None:
-        l_trans = np.random.normal(size=(n_hidden, n_hidden))
-        l_trans -= logsumexp(l_trans, axis=0)
+        probs = np.random.dirichlet(np.ones(n_hidden), size=n_hidden)
+        l_trans = np.log(probs)
 
     if l_emiss is None:
-        l_emiss = np.random.normal(size=(n_hidden, n_obs))
-        l_emiss -= logsumexp(l_emiss, axis=0)
+        probs = np.random.dirichlet(np.ones(n_obs), size=n_hidden)
+        l_emiss = np.log(probs)
 
     lls = []
 
