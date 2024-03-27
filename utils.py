@@ -8,6 +8,7 @@ import subprocess
 from midiutil.MidiFile import MIDIFile
 
 
+# Data utils
 def load_jsb_chorales(path="data/jsb-chorales-quarter.pkl"):
     with open(path, "rb") as f:
         raw = pickle.load(f)
@@ -15,34 +16,49 @@ def load_jsb_chorales(path="data/jsb-chorales-quarter.pkl"):
     result = []
     for song_set in raw.values():
         for song in song_set:
-            melody = [notes[0] if len(notes) > 0 else 0 for notes in song]
+            melody = [notes[0] if len(notes) >= 1 else 0 for notes in song]
             result.append(melody)
 
     return result
 
 
-def write_wav(midi_data, filename, track=0, time_offset=0, channel=0, tempo=240, volume=100, duration=1):
-    write_midi_file(midi_data, "_tmp.mid", track, time_offset, channel, tempo, volume, duration)
-    subprocess.run(["timidity", "_tmp.mid", "-Ow", "-o", filename], stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL)
+# MIDI and WAV utils
+def write_wav(midi_data, filename, tempo=240):
+    write_midi_file(midi_data, "_tmp.mid", tempo=tempo)
+    midi_to_wav("_tmp.mid", filename)
     subprocess.run(["rm", "_tmp.mid"], stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL)
 
 
+def midi_to_wav(midi_path, wav_path):
+    subprocess.run(["timidity", midi_path, "-Ow", "-o", wav_path], stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL)
+
+
 def write_midi_file(midi_data, filename, track=0, time_offset=0, channel=0, tempo=240, volume=100, duration=1):
+    """
+        midi_data: [[(midi_key, quarter_length), ...], ...]
+    
+    """
     dir = os.path.dirname(filename)
     if dir: os.makedirs(dir, exist_ok=True)
 
     midi = MIDIFile(1)
     midi.addTempo(track, time_offset, tempo)
     
-    for i, note in enumerate(midi_data):
-        if note == 0: continue
-        midi.addNote(track, channel, note, time_offset + i, duration, volume)
+    for part in midi_data:
+        time_offset = 0
+        for (midi_key, quarter_length) in part:
+            if midi_key != 0:
+                midi.addNote(track, channel, midi_key, time_offset, duration, volume)
+            
+            time_offset += quarter_length
 
     with open(filename, "wb") as f:
         midi.writeFile(f)
 
 
-NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+# MIDI conversion utils
+
+NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 OCTAVES = list(range(11))
 NOTES_IN_OCTAVE = len(NOTES)
 
@@ -66,7 +82,7 @@ def number_to_note(number: int) -> tuple:
     return note, octave
 
 
-
+# Plotting utils
 def plot_sequence(x_sequence, state_sequence, dots=False):
     fig, ax = plt.subplots(figsize=(12,4))
 
@@ -81,6 +97,7 @@ def plot_sequence(x_sequence, state_sequence, dots=False):
         ax.scatter(xs, x_sequence, color=colors)
     else:
         for i in range(x_sequence.shape[0]):
+            if x_sequence[i] == 0: continue
             x, y = xs[i], x_sequence[i]
             note = number_to_note(y)[0]
             ax.text(x-.1, y-.22, note, color=colors[i], size=12)
@@ -89,3 +106,9 @@ def plot_sequence(x_sequence, state_sequence, dots=False):
     ax.set_xlabel("time")
     ax.set_title("Melody sequence")
     ax.set_xlim(0, x_sequence.shape[0])
+
+
+# Misc utils
+def fix_time(part, quarter_length=1):
+    # [note1, ..., note_n] -> [(note1, quarter_length), ..., (note_n, quarter_length)]
+    return [(note, quarter_length) for note in part]
