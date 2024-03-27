@@ -7,21 +7,6 @@ import subprocess
 
 from midiutil.MidiFile import MIDIFile
 
-
-# Data utils
-def load_jsb_chorales(path="data/jsb-chorales-quarter.pkl"):
-    with open(path, "rb") as f:
-        raw = pickle.load(f)
-
-    result = []
-    for song_set in raw.values():
-        for song in song_set:
-            melody = [notes[0] if len(notes) >= 1 else 0 for notes in song]
-            result.append(melody)
-
-    return result
-
-
 # MIDI and WAV utils
 def write_wav(midi_data, filename, tempo=240):
     write_midi_file(midi_data, "_tmp.mid", tempo=tempo)
@@ -29,9 +14,18 @@ def write_wav(midi_data, filename, tempo=240):
     subprocess.run(["rm", "_tmp.mid"], stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL)
 
 
+def write_mp3(midi_data, filename, tempo=240):
+    write_midi_file(midi_data, "_tmp.mid", tempo=tempo)
+    midi_to_mp3("_tmp.mid", filename)
+    subprocess.run(["rm", "_tmp.mid"], stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL)
+
+
 def midi_to_wav(midi_path, wav_path):
     subprocess.run(["timidity", midi_path, "-Ow", "-o", wav_path], stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL)
 
+
+def midi_to_mp3(midi_path, mp3_path):
+    subprocess.run([f"timidity {midi_path} -Ow -o - | ffmpeg -i - -acodec libmp3lame -ab 64k {mp3_path}"], shell=True, stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL)
 
 def write_midi_file(midi_data, filename, track=0, time_offset=0, channel=0, tempo=240, volume=100, duration=1):
     """
@@ -112,3 +106,10 @@ def plot_sequence(x_sequence, state_sequence, dots=False):
 def fix_time(part, quarter_length=1):
     # [note1, ..., note_n] -> [(note1, quarter_length), ..., (note_n, quarter_length)]
     return [(note, quarter_length) for note in part]
+
+
+def audio_widget(path, ignore=True):
+    # ignore=True to reduce the size of the notebook on git
+    if ignore: return
+    import IPython.display as ipd
+    return ipd.Audio(path)
