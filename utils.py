@@ -77,6 +77,7 @@ def write_midi_file(midi_data, filename, track=0, time_offset=0, channel=0, temp
     time_offset = 0
     for chord in midi_data:
         for note in chord:
+            if note == 0: continue
             midi.addNote(track, channel, note, time_offset, duration, volume)
 
         time_offset += 1
@@ -142,7 +143,7 @@ def plot_sequence(sequence_onehot, state_sequence):
         for j in idxs:
             x, y = xs[i], j
             note = number_to_note(j)[0]
-            ax.text(x-.08, y-1.5, note, color="black", size=11)
+            ax.text(x-.2, y-1.5, note, color="black", size=11)
 
     ax.set_ylabel("note")
     ax.set_xlabel("time")
