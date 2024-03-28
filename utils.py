@@ -133,6 +133,7 @@ def plot_sequence(sequence_onehot, state_sequence):
     # dots + vertical lines
     for i in range(sequence_onehot.shape[0]):
         idxs = np.argwhere(sequence_onehot[i]).flatten()
+        if len(idxs) == 0: continue
         if len(idxs) == 1 and idxs[0] == 0: continue
 
         for j in idxs:
@@ -144,6 +145,7 @@ def plot_sequence(sequence_onehot, state_sequence):
     # note names
     for i in range(sequence_onehot.shape[0]):
         idxs = np.argwhere(sequence_onehot[i]).flatten()
+        if len(idxs) == 0: continue
         if len(idxs) == 1 and idxs[0] == 0: continue
 
         for j in idxs:
