@@ -1,0 +1,2 @@
+# JSB chorales dataset
+The [JSB chorales](https://github.com/czhuang/JSB-Chorales-dataset/) are a set of short, four-voice pieces of music well-noted for their stylistic homogeneity. The chorales were originally composed by Johann Sebastian Bach in the 18th century. He wrote them by first taking pre-existing melodies from contemporary Lutheran hymns and then harmonising them to create the parts for the remaining three voices. The version of the dataset used canonically in representation learning contexts consists of 382 such chorales.

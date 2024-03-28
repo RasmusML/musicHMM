@@ -32,8 +32,8 @@ def write_wav(midi_data, filename, tempo=240):
     subprocess.run(["rm", "_tmp.mid"], stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL)
 
 
-def write_mp3(midi_data, filename, tempo=240):
-    write_midi_file(midi_data, "_tmp.mid", tempo=tempo)
+def write_mp3(midi_data, filename, tempo=240, volume=100):
+    write_midi_file(midi_data, "_tmp.mid", tempo=tempo, volume=volume)
     midi_to_mp3("_tmp.mid", filename)
     subprocess.run(["rm", "_tmp.mid"], stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL)
 
@@ -110,6 +110,11 @@ def number_to_note(number: int) -> tuple:
     note = NOTES[number % NOTES_IN_OCTAVE]
 
     return note, octave
+    
+
+def str_number_to_note(number: int) -> str:
+    note, octave = number_to_note(number)
+    return f"{note}{octave}"
 
 
 # Plotting utils
@@ -128,7 +133,7 @@ def plot_sequence(sequence_onehot, state_sequence):
     # dots + vertical lines
     for i in range(sequence_onehot.shape[0]):
         idxs = np.argwhere(sequence_onehot[i]).flatten()
-        if len(idxs) == 0: continue
+        if len(idxs) == 1 and idxs[0] == 0: continue
 
         for j in idxs:
             x, y = xs[i], j
@@ -139,7 +144,7 @@ def plot_sequence(sequence_onehot, state_sequence):
     # note names
     for i in range(sequence_onehot.shape[0]):
         idxs = np.argwhere(sequence_onehot[i]).flatten()
-        if len(idxs) == 0: continue
+        if len(idxs) == 1 and idxs[0] == 0: continue
 
         for j in idxs:
             x, y = xs[i], j
@@ -181,11 +186,14 @@ def plot_hidden_states_histogram(hidden_states, hidden_dim, ax=None):
     if ax is None:
         fig, ax = plt.subplots(1, 1, figsize=(4, 3))
 
-    # distribution plot
-    sns.histplot(hidden_states, bins=hidden_dim, ax=ax)
+    bins = np.arange(hidden_dim + 1)
+    ax.hist(hidden_states, bins=bins, color="skyblue", edgecolor="black", align="left")
     ax.set_xlabel("Hidden state")
     ax.set_ylabel("Count")
     ax.set_title(f"Hidden states of sampled data (n={hidden_states.shape[0]})")
+    ax.set_xticks(bins[:-1])
+    ax.grid()
+    ax.set_axisbelow(True)
 
     return ax
 
