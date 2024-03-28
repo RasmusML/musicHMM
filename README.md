@@ -1,2 +1,2 @@
 # MusicHMM
-> Symbolic music generation using a hidden Markov model
+> Symbolic music generation using hidden Markov models

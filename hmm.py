@@ -9,9 +9,9 @@ class HMM:
     def fit(self, seqs, lengths, n_iter=100, l_h_init=None, l_trans_init=None, l_emiss_init=None, convergence_eps=-1):
         self._l_trans, self._l_emiss, self._l_h_init, self._history = baum_welch(seqs, lengths, self.n_hidden, self.n_obs, n_iter, l_h_init=l_h_init, l_trans=l_trans_init, l_emiss=l_emiss_init, convergence_eps=convergence_eps)
 
-    def predict(self, seq):
-        seq, _= viterbi(seq, self._l_trans, self._l_emiss, self._l_h_init)
-        return seq
+    def predict(self, hidden_seq):
+        hidden_seq, _= viterbi(hidden_seq, self._l_trans, self._l_emiss, self._l_h_init)
+        return hidden_seq
     
     def sample(self, length):
         seq = np.zeros(length, dtype=np.int32)

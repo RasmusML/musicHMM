@@ -4,8 +4,25 @@ import numpy as np
 import matplotlib.pyplot as plt
 import distinctipy
 import subprocess
+import torch
 
 from midiutil.MidiFile import MIDIFile
+
+
+def load_jsb_chorales(path="data/jsb-chorales-quarter.pkl"):
+    with open(path, "rb") as f:
+        raw = pickle.load(f)
+
+    offset = -20
+
+    result = []
+    for song_set in raw.values():
+        for song in song_set:
+            melody = [list(np.array(notes) + offset) if len(notes) >= 1 else [] for notes in song]
+            result.append(melody)
+
+    return result
+
 
 # MIDI and WAV utils
 def write_wav(midi_data, filename, tempo=240):
@@ -27,7 +44,7 @@ def midi_to_wav(midi_path, wav_path):
 def midi_to_mp3(midi_path, mp3_path):
     subprocess.run([f"timidity {midi_path} -Ow -o - | ffmpeg -i - -acodec libmp3lame -ab 64k {mp3_path}"], shell=True, stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL)
 
-def write_midi_file(midi_data, filename, track=0, time_offset=0, channel=0, tempo=240, volume=100, duration=1):
+def write_midi_file2(midi_data, filename, track=0, time_offset=0, channel=0, tempo=240, volume=100, duration=1):
     """
         midi_data: [[(midi_key, quarter_length), ...], ...]
     
@@ -49,6 +66,23 @@ def write_midi_file(midi_data, filename, track=0, time_offset=0, channel=0, temp
     with open(filename, "wb") as f:
         midi.writeFile(f)
 
+
+def write_midi_file(midi_data, filename, track=0, time_offset=0, channel=0, tempo=240, volume=100, duration=1):
+    dir = os.path.dirname(filename)
+    if dir: os.makedirs(dir, exist_ok=True)
+
+    midi = MIDIFile(1)
+    midi.addTempo(track, time_offset, tempo)
+    
+    time_offset = 0
+    for chord in midi_data:
+        for note in chord:
+            midi.addNote(track, channel, note, time_offset, duration, volume)
+
+        time_offset += 1
+
+    with open(filename, "wb") as f:
+        midi.writeFile(f)
 
 # MIDI conversion utils
 
@@ -77,29 +111,43 @@ def number_to_note(number: int) -> tuple:
 
 
 # Plotting utils
-def plot_sequence(x_sequence, state_sequence, dots=False):
-    fig, ax = plt.subplots(figsize=(12,4))
+def plot_sequence(sequence_onehot, state_sequence):
+    fig, ax = plt.subplots(figsize=(14,4))
 
     color_palette = distinctipy.get_colors(np.max(state_sequence) + 1)
     colors = [color_palette[s] for s in state_sequence]
 
-    xs = np.arange(x_sequence.shape[0])
-    cs = np.linspace(np.min(x_sequence), np.max(x_sequence), 12)
+    xs = np.arange(sequence_onehot.shape[0])
+
+    all_idxs = np.argwhere(sequence_onehot).flatten()
+    cs = np.linspace(np.min(all_idxs), np.max(all_idxs), 12)
     ax.hlines(cs, 0, xs.shape[0], linestyles="dotted", color="gray")
-    
-    if dots: 
-        ax.scatter(xs, x_sequence, color=colors)
-    else:
-        for i in range(x_sequence.shape[0]):
-            if x_sequence[i] == 0: continue
-            x, y = xs[i], x_sequence[i]
-            note = number_to_note(y)[0]
-            ax.text(x-.1, y-.22, note, color=colors[i], size=12)
+
+    # dots + vertical lines
+    for i in range(sequence_onehot.shape[0]):
+        idxs = np.argwhere(sequence_onehot[i]).flatten()
+        if len(idxs) == 0: continue
+
+        for j in idxs:
+            x, y = xs[i], j
+            ax.scatter(x, y, color=colors[i], s=80)
+
+        ax.vlines(x, np.min(idxs), np.max(idxs), color=colors[i], linestyles="dotted")
+
+    # note names
+    for i in range(sequence_onehot.shape[0]):
+        idxs = np.argwhere(sequence_onehot[i]).flatten()
+        if len(idxs) == 0: continue
+
+        for j in idxs:
+            x, y = xs[i], j
+            note = number_to_note(j)[0]
+            ax.text(x-.08, y-1.5, note, color="black", size=11)
 
     ax.set_ylabel("note")
     ax.set_xlabel("time")
-    ax.set_title("Melody sequence")
-    ax.set_xlim(0, x_sequence.shape[0])
+    ax.set_title("Sequence")
+    ax.set_xlim(0, sequence_onehot.shape[0])
 
 
 # Misc utils
@@ -108,8 +156,38 @@ def fix_time(part, quarter_length=1):
     return [(note, quarter_length) for note in part]
 
 
-def audio_widget(path, ignore=True):
+def audio_widget(path, ignore=False):
     # ignore=True to reduce the size of the notebook on git
     if ignore: return
     import IPython.display as ipd
     return ipd.Audio(path)
+
+
+# One-hot encoding <-> midi note conversion
+def idx_to_onehot(sequence_idx, data_dim=88):
+    length = len(sequence_idx)
+
+    sequences_hot = np.zeros((length, data_dim))
+
+    for t, notes_pressed in enumerate(sequence_idx):
+        sequences_hot[t, notes_pressed] = 1
+
+    return sequences_hot
+
+
+def one_hot_to_idx(sequence):
+    return list(np.argwhere(sequence).flatten())
+
+
+def idx_to_onehot_multi(sequences_idx, data_dim=88):
+    n_sequences = len(sequences_idx)
+    lengths = np.array([len(song) for song in sequences_idx])
+    max_length = lengths.max()
+
+    sequences_hot = np.zeros((n_sequences, max_length, data_dim))
+
+    for i, sequence in enumerate(sequences_idx):
+        for t, notes_pressed in enumerate(sequence):
+            sequences_hot[i, t, notes_pressed] = 1
+
+    return sequences_hot
