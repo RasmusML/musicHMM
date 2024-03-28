@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import distinctipy
 import subprocess
 import torch
+import seaborn as sns
 
 from midiutil.MidiFile import MIDIFile
 
@@ -149,6 +150,44 @@ def plot_sequence(sequence_onehot, state_sequence):
     ax.set_xlabel("time")
     ax.set_title("Sequence")
     ax.set_xlim(0, sequence_onehot.shape[0])
+
+
+def plot_loss(train_losses, validation_losses):
+    fig, ax = plt.subplots(1, 1, figsize=(4, 3))
+    ax.plot(train_losses, label="train")
+    ax.plot(validation_losses, label="validation")
+    ax.set_title("Loss")
+    ax.set_xlabel("Iterations")
+    ax.set_ylabel("Loss")
+    ax.legend()
+    ax.grid()
+
+
+def heatmap_transition_matrix(transition_matrix, ax=None):
+    if ax is None:
+        fig, ax = plt.subplots(1, 1, figsize=(6, 6))
+
+    hidden_dim = transition_matrix.shape[0]
+    text = np.array([[f"{transition_matrix[i, j]:.1f}" for j in range(hidden_dim)] for i in range(hidden_dim)])
+    sns.heatmap(transition_matrix, cmap="viridis", ax=ax, annot=text, fmt="s")
+    ax.set_xlabel("To")
+    ax.set_ylabel("From")
+    ax.set_title("Transition matrix")
+
+    return ax
+
+
+def plot_hidden_states_histogram(hidden_states, hidden_dim, ax=None):
+    if ax is None:
+        fig, ax = plt.subplots(1, 1, figsize=(4, 3))
+
+    # distribution plot
+    sns.histplot(hidden_states, bins=hidden_dim, ax=ax)
+    ax.set_xlabel("Hidden state")
+    ax.set_ylabel("Count")
+    ax.set_title(f"Hidden states of sampled data (n={hidden_states.shape[0]})")
+
+    return ax
 
 
 # Misc utils
