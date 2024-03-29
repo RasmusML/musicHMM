@@ -14,7 +14,7 @@ def load_jsb_chorales(path="data/jsb-chorales-quarter.pkl"):
     with open(path, "rb") as f:
         raw = pickle.load(f)
 
-    offset = -20
+    offset = -10
 
     result = []
     for song_set in raw.values():
@@ -214,7 +214,7 @@ def audio_widget(path, ignore=False):
 
 
 # One-hot encoding <-> midi note conversion
-def idx_to_onehot(sequence_idx, data_dim=88):
+def idx_to_onehot(sequence_idx, data_dim=97):
     length = len(sequence_idx)
 
     sequences_hot = np.zeros((length, data_dim))
@@ -229,7 +229,7 @@ def one_hot_to_idx(sequence):
     return list(np.argwhere(sequence).flatten())
 
 
-def idx_to_onehot_multi(sequences_idx, data_dim=88):
+def idx_to_onehot_multi(sequences_idx, data_dim=97):
     n_sequences = len(sequences_idx)
     lengths = np.array([len(song) for song in sequences_idx])
     max_length = lengths.max()
